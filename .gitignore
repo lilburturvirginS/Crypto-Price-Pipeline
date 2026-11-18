@@ -1,0 +1,21 @@
+# Python & Virtual Environment
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# IDE & Notebooks
+.vscode/
+.ipynb_checkpoints/
+Project.ipynb
+Projecy.ipynb
+
+# Local backups, scratch & test scripts
+crypto_backup*.db
+exports/
+main copy.py
+main_test.py
+log_test.py
+Projecy.py
+RunPJ.txt
+pipeline_old.log

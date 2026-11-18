@@ -1,0 +1,49 @@
+name: Crypto Price Pipeline
+
+on:
+  schedule:
+    # รันอัตโนมัติทุก 15 นาที (เวลา UTC)
+    - cron: "*/15 * * * *"
+  # เปิดปุ่ม Run workflow ให้กดทดสอบรันด้วยตัวเองบนหน้าเว็บ GitHub ได้ทันที
+  workflow_dispatch:
+
+permissions:
+  # อนุญาตให้ workflow commit ข้อมูล crypto.db และ pipeline.log กลับเข้า repo ได้
+  contents: write
+
+concurrency:
+  # กันไม่ให้ 2 รอบรันชนกันตอน push ไฟล์ crypto.db
+  group: crypto-pipeline
+  cancel-in-progress: false
+
+jobs:
+  collect-prices:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: "requirements-pipeline.txt"
+
+      - name: Install pipeline dependencies
+        run: pip install -r requirements-pipeline.txt
+
+      - name: Run crypto price pipeline
+        run: python main.py
+
+      - name: Commit and push updated DB and logs
+        if: always()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add crypto.db pipeline.log*
+          if ! git diff --staged --quiet; then
+            git commit -m "chore: update crypto prices [skip ci]"
+            git push
+          fi
