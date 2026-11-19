@@ -35,6 +35,8 @@ jobs:
         run: pip install -r requirements-pipeline.txt
 
       - name: Run crypto price pipeline
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.CRYPTONOTIFY }}
         run: python main.py
 
       - name: Commit and push updated DB and logs

@@ -1,3 +1,4 @@
+import os
 import sqlite3
 import time
 import logging
@@ -61,6 +62,18 @@ def save_price(coin, price, currency="usd"):
             "INSERT INTO price_snapshot (coin_name, price, currency, timestamp) VALUES (?, ?, ?, ?)",
             (coin, price, currency, ts))
 
+def notify_discord(message: str):
+    """ส่งแจ้งเตือนเข้า Discord ผ่าน Webhook (อ่าน URL จาก env เพื่อไม่ฮาร์ดโค้ดในไฟล์)"""
+    webhook_url = os.getenv("DISCORD_WEBHOOK_URL") or os.getenv("CRYPTONOTIFY")
+    if not webhook_url:
+        return  # ถ้ารันในเครื่องตัวเองโดยไม่ได้ตั้งค่า env ให้ข้ามไปเงียบๆ
+    try:
+        r = requests.post(webhook_url, json={"content": message}, timeout=5)
+        r.raise_for_status()
+    except Exception as e:
+        # กันไม่ให้ตัวแจ้งเตือนพังแล้วไปรบกวนการทำงานหลัก แค่จด warning ลง log
+        logging.warning(f"ส่งแจ้งเตือน Discord ไม่สำเร็จ: {e}")
+
 def main():
     handler = RotatingFileHandler(
         LOG_PATH,
@@ -79,10 +92,14 @@ def main():
         init_db()
         prices = fetch_with_retry(coins)
         if prices is None:
-            logging.error(f"ยอมแพ้รอบนี้: {coins} ลองครบ 3 ครั้งแล้วยังดึงราคาไม่ได้")
+            msg = f"ยอมแพ้รอบนี้: {coins} ลองครบ 3 ครั้งแล้วยังดึงราคาไม่ได้"
+            logging.error(msg)
+            notify_discord(f"🚨 **[Crypto Pipeline Error]**\n{msg}")
             return 1
         if not prices:
-            logging.error("ไม่พบราคาของเหรียญใดเลย (เช็คชื่อเหรียญใน coins)")
+            msg = "ไม่พบราคาของเหรียญใดเลย (เช็คชื่อเหรียญใน coins)"
+            logging.error(msg)
+            notify_discord(f"🚨 **[Crypto Pipeline Error]**\n{msg}")
             return 1
         try:
             for coin, price in prices.items():
@@ -91,9 +108,11 @@ def main():
             return 0
         except sqlite3.Error as e:
             logging.exception(f"บันทึกลง DB ไม่ได้: {e}")
+            notify_discord(f"🚨 **[Crypto Pipeline DB Error]**\nบันทึกลง DB ไม่ได้: `{e}`")
             return 1
-    except Exception:
+    except Exception as e:
         logging.exception("รอบนี้พังด้วย error ที่ไม่ได้คาดไว้")
+        notify_discord(f"🚨 **[Crypto Pipeline Crash]**\nError ที่ไม่ได้คาดไว้: `{type(e).__name__}: {e}`")
         return 1
 
 if __name__ == "__main__":
